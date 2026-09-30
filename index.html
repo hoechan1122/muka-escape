@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="お母さんから逃げろ">
+<meta name="theme-color" content="#1b1b22">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>お母さんから逃げろ!</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: #1b1b22; color: #eee; font-family: "Yu Gothic", "Meiryo", sans-serif;
+         display: flex; flex-direction: column; align-items: center; touch-action: manipulation;
+         -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #wrap { position: relative; margin-top: 16px; }
+  canvas { display: block; width: min(calc(100vw - 8px), calc((100vh - 90px) * 2)); height: auto; border: 2px solid #000; }
+  #codeBox { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+             background: rgba(0,0,0,.65); }
+  #codeBox .panel { background: #fffbe8; color: #222; padding: 16px 20px; border: 4px solid #222;
+                    width: 440px; max-width: 86%; }
+  #codeQ { white-space: pre-wrap; line-height: 1.6; margin-bottom: 10px; font-weight: bold; }
+  #codeIn { width: 100%; box-sizing: border-box; font-size: 22px; padding: 6px; letter-spacing: 2px; -webkit-user-select: text; user-select: text; }
+  #codeBox .btns { margin-top: 10px; display: flex; gap: 8px; justify-content: flex-end; }
+  #codeBox button { font-size: 16px; padding: 6px 16px; cursor: pointer; }
+  #help { font-size: 13px; color: #999; margin: 10px; text-align: center; line-height: 1.7; }
+
+  /* スマホ用ボタン(タッチできる端末だけ表示) */
+  #touch { display: none; position: absolute; inset: 0; pointer-events: none; }
+  #touch > div { position: absolute; pointer-events: auto; touch-action: none; display: flex; align-items: center;
+                 justify-content: center; flex-direction: column; color: #fff; font-weight: bold;
+                 transition: transform .05s, box-shadow .05s; }
+  #touch svg { width: 58%; height: 58%; fill: #fff; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
+  /* 大きさは画面の短い辺(vmin)に合わせる(縦持ちで画面を回したときも同じ大きさになるように) */
+
+  /* 左右: 1枚の板(指をすべらせて向きを変えられる) */
+  #pad { left: 2.5%; bottom: 4%; width: 27%; height: 23%; border-radius: 999px; flex-direction: row !important;
+         background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,.08));
+         border: 2px solid rgba(255,255,255,.7); box-shadow: 0 5px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.5);
+         -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  #pad span { flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 999px; }
+  #pad span svg { width: 62%; height: 62%; }
+  #pad span:first-child { border-right: 2px solid rgba(255,255,255,.35); border-radius: 999px 0 0 999px; }
+  #pad span:last-child { border-radius: 0 999px 999px 0; }
+  #pad.l span:first-child, #pad.r span:last-child { background: radial-gradient(circle, rgba(255,216,74,.85), rgba(255,170,0,.45)); }
+
+  /* ジャンプ(大きい赤)と 調べる(青) */
+  .round { aspect-ratio: 1; border-radius: 50%; border: 3px solid rgba(255,255,255,.85); }
+  #btnJump { right: 3%; bottom: 5%; width: 16%;
+             background: radial-gradient(circle at 35% 30%, #ff8a8f, #e3122f 60%, #a3001a);
+             box-shadow: 0 6px 0 #6b0012, 0 8px 12px rgba(0,0,0,.35); }
+  #btnDown { right: 21.5%; bottom: 5%; width: 10%;
+             background: radial-gradient(circle at 35% 30%, #8fd0ff, #1f7ae0 60%, #0b4a9c);
+             box-shadow: 0 5px 0 #06305f, 0 7px 10px rgba(0,0,0,.35); }
+  #btnJump svg, #btnDown svg { width: 46%; height: 46%; }
+  .lbl { font-size: 2.3vmin; letter-spacing: .08em; margin-top: -2%; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+  #btnJump.on, #btnDown.on { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.45); filter: brightness(1.15); }
+
+  /* 右上の小さいボタン(一時停止・やり直し・音・全画面) */
+  .mini { top: 3%; width: 7%; background: rgba(20,20,30,.45); border: 2px solid rgba(255,255,255,.7);
+          -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+  #btnR { right: 2%; } #btnP { right: 10.5%; } #btnS { right: 19%; } #btnF { right: 27.5%; }
+  .mini.on { transform: translateY(2px); background: rgba(255,216,74,.55); }
+  #btnS .off { display: none; } #btnS.muted .on-i { display: none; } #btnS.muted .off { display: block; }
+  body.standalone #btnF { display: none; }
+
+  body.touch { justify-content: center; overflow: hidden; }
+  body.touch #wrap { margin-top: 0; }
+  body.touch canvas { width: min(100vw, 200vh); border: none; }
+  @supports (height: 100dvh) { body.touch canvas { width: min(100vw, 200dvh); } }
+  body.touch #help { display: none; }
+  body.touch #touch { display: block; }
+  body.touch #codeBox { align-items: flex-start; padding-top: 2%; }
+  /* 縦のまま横にできないとき(Discordの中のブラウザなど)は、ゲーム画面を90度回して表示する。サイズは layout() で決める */
+  body.rotated #wrap { position: fixed; top: 0; transform-origin: 0 0; transform: rotate(90deg);
+                       display: flex; align-items: center; justify-content: center; background: #000; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="960" height="480"></canvas>
+  <div id="touch">
+    <div id="pad">
+      <span><svg viewBox="0 0 24 24"><path d="M15.5 4.5 7 12l8.5 7.5z" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></span>
+      <span><svg viewBox="0 0 24 24"><path d="M8.5 4.5 17 12l-8.5 7.5z" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></span>
+    </div>
+    <div id="btnDown" class="round"><svg viewBox="0 0 24 24"><path d="M12 21 3.5 11.5H9V3h6v8.5h5.5z"/></svg><span class="lbl">しらべる</span></div>
+    <div id="btnJump" class="round"><svg viewBox="0 0 24 24"><path d="M12 3l8.5 9.5H15V21H9v-8.5H3.5z"/></svg><span class="lbl">JUMP</span></div>
+    <div id="btnP" class="round mini"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></div>
+    <div id="btnR" class="round mini"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 1-7.4 5h3.3A5 5 0 1 0 12 7v3L7 5.5 12 1z"/></svg></div>
+    <div id="btnS" class="round mini">
+      <svg class="on-i" viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      <svg class="off" viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/><path d="M16 9l6 6M22 9l-6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </div>
+    <div id="btnF" class="round mini"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  </div>
+  <div id="codeBox">
+    <div class="panel">
+      <div id="codeQ"></div>
+      <input id="codeIn" autocomplete="off">
+      <div class="btns"><button id="codeCancel">やめる</button><button id="codeOk">決定</button></div>
+    </div>
+  </div>
+</div>
+<div id="help">← → 移動 / スペース・↑・Z ジャンプ(長押しで高く) / ↓ 調べる・答える / P 一時停止 / R 自殺して中間地点へ / M 音のON・OFF<br>ノートとペンを用意しておくこと。</div>
+
+<script>
+  // stages.js の書きまちがいを画面に出すため、読み込む前に見張りを置く
+  window.stageError = null;
+  window.addEventListener('error', e => {
+    if (e.filename && e.filename.includes('stages.js')) {
+      window.stageError = 'stages.js の ' + e.lineno + ' 行目あたりがおかしい\n' + e.message;
+    }
+  });
+</script>
+<script src="stages.js"></script>
+<script src="sound.js"></script>
+<script src="opening.js"></script>
+<script>
+'use strict';
+const T = 32, W = 960, H = 480;
+const HERO = 'ライオットドリル';
+const SAVE_KEY = 'muka-escape-save-v1';
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const SOLID = new Set(['#', '=', 'X', 'V', 'v', 'L', 'h', 'D', 'R', 'Q', 'M', 'N', 'A', 'T', 'I', 'a', 'b', 'c', 'd']);
+const BRICKS = new Set(['=', 'V', 'v', 'L', 'h']);  // 見た目がレンガのもの
+const GROUND = new Set(['#', 'X', 'B']);   // 見た目が地面のもの(B は通り抜けられる偽の壁)
+const SIGN_KEYS = '123456789!$%&+@~;';
+const isSign = ch => ch.length === 1 && SIGN_KEYS.includes(ch);
+// 順番ブロックに使える文字(stages.js の door.switches に書いたものだけがブロックになる)
+const SWITCH_KEYS = 'abcdfgilmnqrstuwxyz';
+const KNOWN = new Set([...'.#=PGFUYOB^*?XVvLhSAjekDKCJHWZoQMNTIpE<', ...SWITCH_KEYS, ...SIGN_KEYS]);
+function isSwitch(ch) {
+  const d = typeof STAGES !== 'undefined' && STAGES[stageIndex] && STAGES[stageIndex].door;
+  return !!(d && d.switches && d.switches[ch]);
+}
+function isSolid(ch) { return SOLID.has(ch) || isSwitch(ch); }
+const CLOUD = new Set(['W', 'Z']);   // 上からだけ乗れる雲(Z は乗ると消える)
+const FLAG = new Set(['C', 'J', 'H']); // 中間地点の旗(J は偽物、H は謎の答え)
+
+// 古いiPad(iOS 15以前)のSafariには角丸の命令が無いので補う
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    const rr = Array.isArray(r) ? r[0] : r;
+    this.moveTo(x + rr, y);
+    this.arcTo(x + w, y, x + w, y + h, rr); this.arcTo(x + w, y + h, x, y + h, rr);
+    this.arcTo(x, y + h, x, y, rr); this.arcTo(x, y, x + w, y, rr);
+    this.closePath();
+  };
+}
+
+const DEATH_LINES = [
+  // 遊ぶのは学生・社会人が混ざった友達なので、どちらにも刺さるネタを同じ目線の皮肉で(上から説教しない)
+  'そのミス、上司にも同じ言い訳できます?',
+  '報連相、できてました?',
+  '今のミス、議事録に残しておきますね',
+  '有給、取ってもいいですよ。取れればですけど',
+  '月曜の朝みたいな動きでした',
+  'お疲れさまでした。次もお疲れください',
+  '今のは想定内です。こちらの',
+  '反省は結構です。学習してください',
+  '反省はさっきも聞きました。学習はまだですか',
+  '同じミスを2回する人を、何と呼ぶと思います?',
+  '失敗は成功のもと、らしいですよ。そろそろ成功しては?',
+  'そのジャンプ、就活の面接でも同じことできます?',
+  '大丈夫です。誰も見てません。スクショ以外は',
+  '今の、単位だったら落としてますね',
+  'テスト前日の一夜漬けみたいな動きでした',
+  '今のミス、グループLINEに共有しておきますね',
+  '成人式で話すネタが できましたね',
+  'その死に方、SNSに上げたら伸びそうです',
+  'レポートの締め切りも そのくらいギリギリですか?',
+  'もうすぐ大人なのに、何回死ぬんですか',
+  '一応確認ですが、画面ちゃんと見てます?',
+  'ご自身のペースで大丈夫です。遅いですけど',
+  HERO + '、また死ぬ',
+];
+const DEFAULT_TALK = { e: 'ぼくは踏めるよ', k: 'ぼくを踏んでごらん' };
+// 死んだときに上に出る、昔のゲーム風の一言(パロディ)
+const DEATH_HEADERS = [
+  'おお ライオットドリルよ!\nしんでしまうとは なにごとだ!',
+  'ライオットドリルは ちからつきた…',
+  'GAME OVER\nコンティニューしますか? → はい / はい',
+  'ライオットドリルは たおれた…\nハートの かけらも ありません',
+  'ライオットドリルの ぼうけんは\nここで おわって…いません。まだ続きます',
+  'つうこんの いちげき!\nライオットドリルは しんだ',
+];
+let deathHeader = '';
+
+// ---------- 入力 ----------
+const keys = {};
+let inputOpen = false;
+function press(code) {
+  if (inputOpen) return;
+  Sound.init();
+  if (code === 'KeyM') {
+    flash = { text: Sound.toggle() ? '音: OFF' : '音: ON', t: 60 };
+    document.getElementById('btnS').classList.toggle('muted', Sound.muted);
+    return;
+  }
+  if (!keys[code]) onPress(code);
+  keys[code] = true;
+}
+function release(code) { keys[code] = false; }
+function clearKeys() {
+  for (const k in keys) keys[k] = false;
+  document.querySelectorAll('#touch > div').forEach(el => el.classList.remove('on', 'l', 'r'));
+}
+addEventListener('keydown', e => {
+  if (inputOpen) return;
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  press(e.code);
+});
+addEventListener('keyup', e => release(e.code));
+addEventListener('blur', clearKeys);
+
+// ---------- 状態 ----------
+let mode = 'title', menu = null, hasSave = false;
+let stageIndex = 0, deaths = 0, frames = 0, coins = 0;
+let map, rows, cols, p, enemies, fallers, fallQueue, traps, goals, plants, pops, hasPost, pressed, vanishing = [];
+let firedEvents = new Set(), evt = null, fc = null, warp = null;
+let homers = [], thwomps = [], seqFalls = [], ghosts = [];
+let chase = null, chaseDone = new Set(), keyHist = [];
+let signText = '', nearDoor = false, nearPost = false, deadTimer = 0, deathMsg = '', flash = null, banner = null;
+let clearedGoal = null, camX = 0, camY = 0;
+// 解いた扉は死んでも開いたままにする(謎解きをやり直させると理不尽すぎるため)
+const solved = {};
+let checkpoint = null;          // {stage, c, r}
+let taken = {};                 // ステージごとに取ったコイン・?ブロックの位置(死んでも復活させない)
+let deathSpots = {};
+let cleared = [];               // クリアしたステージ番号
+let deathMarks = {};            // ステージごとの死んだ場所。次から「ここで死んだ」印を出して学習させる
+let mapSel = 0;
+
+function stage() { return STAGES[stageIndex]; }
+function takenSet(i) { return taken[i] || (taken[i] = new Set()); }
+
+function loadStage(i, fresh) {
+  const st = STAGES[i];
+  let lines = st.map.split('\n').map(s => s.replace(/\r/g, ''));
+  while (lines.length && lines[0].trim() === '') lines.shift();
+  while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+  rows = lines.length;
+  cols = Math.max(...lines.map(l => l.length));
+  map = lines.map(l => l.padEnd(cols, '.').split('').map(ch => (KNOWN.has(ch) ? ch : '.')));
+  enemies = []; fallers = []; fallQueue = []; traps = []; goals = []; plants = []; pops = []; pressed = []; vanishing = [];
+  firedEvents = new Set(); homers = []; thwomps = []; seqFalls = []; ghosts = [];
+  chase = null; chaseDone = new Set(); keyHist = [];
+  hasPost = false;
+  let start = null;
+  const tk = takenSet(i);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const ch = map[r][c], key = c + ',' + r;
+    if (ch === 'P') { start = { c, r }; map[r][c] = '.'; }
+    else if (ch === 'e' || ch === 'k') { enemies.push({ type: ch, x: c * T + 3, y: r * T + 8, w: 26, h: 24, vx: -1, vy: 0, alive: true, active: false, squash: 0 }); map[r][c] = '.'; }
+    else if (ch === 'p') { plants.push({ x: (c + 1) * T, base: (r + 1) * T, t: (c * 37) % 150, off: 40 }); map[r][c] = '.'; }
+    else if (ch === 'D' && solved[i]) map[r][c] = '.';
+    else if (ch === 'K') hasPost = true;
+    else if ('V*vLh'.includes(ch)) traps.push({ type: ch, c, r, done: false });
+    else if (ch === 'E' || ch === '<') { ghosts.push({ x: c * T + 16, y: r * T + 16, rev: ch === '<', moving: false }); map[r][c] = '.'; }
+    else if (ch === 'S') { thwomps.push({ hx: c * T, hy: r * T, x: c * T, y: r * T, w: 44, h: 44, state: 'idle', t: 0, vx: 0, vy: 0 }); map[r][c] = '.'; }
+    else if ('GFUYO'.includes(ch)) { goals.push({ c, r, kind: 'GU'.includes(ch) ? 'toilet' : 'pole', fake: 'FU'.includes(ch), fakeClear: ch === 'O' }); map[r][c] = '.'; }
+    else if (ch === 'o' && tk.has(key)) map[r][c] = '.';
+    else if (ch === 'Q' && tk.has(key)) map[r][c] = 'R';
+  }
+  const spawn = checkpoint && checkpoint.stage === i ? checkpoint : (start || { c: 1, r: rows - 3 });
+  p = newPlayer(spawn.c, spawn.r);
+  // 中間地点より手前のイベントは、もう見たことにする(復活のたびに出るとただの邪魔なので)
+  for (const ev of st.events || []) if (ev.c <= spawn.c) firedEvents.add(ev.c);
+  for (const ch of st.chase || []) if (ch.from <= spawn.c) chaseDone.add(ch.from);
+  signText = ''; nearDoor = false; nearPost = false;
+  if (fresh) banner = { text: st.name || '', t: 170 };
+  updateCamera();
+}
+
+function newPlayer(c, r) {
+  return { x: c * T + 5, y: r * T + 4, w: 22, h: 28, vx: 0, vy: 0, onGround: false, facing: 1, jumpHeld: true, anim: 0, dead: false };
+}
+
+function tile(c, r) {
+  if (c < 0 || c >= cols) return '#';
+  if (r < 0 || r >= rows) return '.';
+  return map[r][c];
+}
+function setTile(c, r, ch) { if (r >= 0 && r < rows && c >= 0 && c < cols) map[r][c] = ch; }
+function overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+function eachTile(o, fn) {
+  const c0 = Math.floor(o.x / T), c1 = Math.floor((o.x + o.w - 1) / T);
+  const r0 = Math.floor(o.y / T), r1 = Math.floor((o.y + o.h - 1) / T);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) fn(tile(c, r), c, r);
+}
+
+// ---------- セーブ ----------
+function saveGame() {
+  try {
+    const tk = {};
+    for (const k in taken) tk[k] = [...taken[k]];
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ stageIndex, deaths, frames, coins, solved, checkpoint, taken: tk, cleared, deathMarks }));
+  } catch (e) { /* 保存できない環境でも遊べるようにする */ }
+}
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (!s || typeof s.stageIndex !== 'number' || s.stageIndex >= STAGES.length) return null;
+    return s;
+  } catch (e) { return null; }
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+
+// ---------- 当たり判定つき移動 ----------
+function moveX(o) {
+  o.x += o.vx;
+  const r0 = Math.floor(o.y / T), r1 = Math.floor((o.y + o.h - 1) / T);
+  if (o.vx > 0) {
+    const c = Math.floor((o.x + o.w - 1) / T);
+    for (let r = r0; r <= r1; r++) if (isSolid(tile(c, r))) { o.x = c * T - o.w; return true; }
+  } else if (o.vx < 0) {
+    const c = Math.floor(o.x / T);
+    for (let r = r0; r <= r1; r++) if (isSolid(tile(c, r))) { o.x = (c + 1) * T; return true; }
+  }
+  return false;
+}
+
+function moveY(o, isPlayer) {
+  o.y += o.vy;
+  const c0 = Math.floor(o.x / T), c1 = Math.floor((o.x + o.w - 1) / T);
+  o.onGround = false;
+  if (o.vy < 0) {
+    const r = Math.floor(o.y / T);
+    let hit = false, bumped = null;
+    for (let c = c0; c <= c1; c++) {
+      const ch = tile(c, r);
+      if (ch === '?' && isPlayer) { setTile(c, r, 'R'); hit = true; }
+      else if (isSolid(ch)) { hit = true; if (isPlayer && !bumped && ('QMNA'.includes(ch) || isSwitch(ch))) bumped = [c, ch]; }
+    }
+    if (hit) { o.y = (r + 1) * T; o.vy = 0; }
+    if (bumped) bump(bumped[0], r, bumped[1]);
+  } else if (o.vy > 0) {
+    const r = Math.floor((o.y + o.h - 1) / T);
+    const prevBottom = o.y - o.vy + o.h;
+    let hit = false;
+    for (let c = c0; c <= c1; c++) {
+      const ch = tile(c, r);
+      if (isSolid(ch)) { hit = true; if (ch === 'X' && isPlayer) queueFall(c, r); }
+      else if (CLOUD.has(ch) && prevBottom <= r * T + 1) { hit = true; if (ch === 'Z' && isPlayer) touchCloud(c, r); }
+    }
+    if (hit) { o.y = r * T - o.h; o.vy = 0; o.onGround = true; }
+  }
+}
+
+function bump(c, r, ch) {
+  if (ch === 'Q') {
+    setTile(c, r, 'R'); takenSet(stageIndex).add(c + ',' + r); coins++; Sound.sfx.coin();
+    pops.push({ x: c * T + T / 2, y: r * T, t: 24 });
+  } else if (ch === 'A') {
+    // 叩かないと先に進めない?ブロック: 見えない足場(j)が全部レンガになる
+    setTile(c, r, 'R');
+    for (let rr = 0; rr < rows; rr++) for (let cc = 0; cc < cols; cc++) if (map[rr][cc] === 'j') map[rr][cc] = '=';
+    flash = { text: 'ゴゴゴ…どこかに 足場ができた\n(?ブロックは叩かない、という固定概念)', t: 150 };
+  } else if (ch === 'M') {
+    setTile(c, r, 'R');
+    die('?ブロックを叩けば いいことがある…\nそれ、固定概念です');
+  } else if (ch === 'N') {
+    setTile(c, r, 'R');
+    enemies.push({ type: 'k', x: c * T + 3, y: (r - 1) * T + 8, w: 26, h: 24, vx: p.x < c * T ? -1 : 1, vy: -4, alive: true, active: true, squash: 0 });
+  } else pressSwitch(ch);
+}
+
+// 順番ブロック: stages.js の door.order の順に下から叩く
+function pressSwitch(ch) {
+  const d = stage().door;
+  if (!d || !d.order || solved[stageIndex] || pressed.includes(ch)) return;
+  pressed.push(ch);
+  if (d.order[pressed.length - 1] !== ch) return die(d.wrong || '順番がちがいます。感電しました');
+  if (pressed.length === d.order.length) solve();
+}
+
+function solve() {
+  solved[stageIndex] = true; Sound.sfx.solve();
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (map[r][c] === 'D') map[r][c] = '.';
+  flash = { text: 'ガチャ…どこかの扉が開いた', t: 150 };
+  saveGame();
+}
+
+// 消える雲: 乗ってから少しするとつながった雲ごと消える
+function touchCloud(c, r) {
+  if (vanishing.some(v => v.r === r && Math.abs(v.c - c) <= 1)) return;
+  vanishing.push({ c, r, t: 25 });
+}
+function processClouds() {
+  for (const v of vanishing) {
+    if (--v.t > 0) continue;
+    let a = v.c, b = v.c;
+    while (tile(a - 1, v.r) === 'Z') a--;
+    while (tile(b + 1, v.r) === 'Z') b++;
+    for (let c = a; c <= b; c++) setTile(c, v.r, '.');
+  }
+  vanishing = vanishing.filter(v => v.t > 0);
+}
+
+function queueFall(c, r) {
+  if (fallQueue.some(f => f.c === c && f.r === r)) return;
+  fallQueue.push({ c, r, t: 4 });
+}
+function processFalls() {
+  for (const f of fallQueue) {
+    if (--f.t > 0) continue;
+    for (let r = f.r; tile(f.c, r) === 'X'; r++) {
+      setTile(f.c, r, '.');
+      fallers.push({ x: f.c * T, y: r * T, vy: 0, look: '#', deadly: false });
+    }
+  }
+  fallQueue = fallQueue.filter(f => f.t > 0);
+}
+
+function checkTraps() {
+  const pcx = p.x + p.w / 2, pcy = p.y + p.h / 2;
+  for (const t of traps) {
+    if (t.done) continue;
+    const tx = t.c * T + T / 2, ty = t.r * T + T / 2;
+    if (t.type === 'V' && pcy > ty && pcy - ty < 7 * T && Math.abs(pcx - tx) < 56) {
+      t.done = true; setTile(t.c, t.r, '.');
+      fallers.push({ x: t.c * T, y: t.r * T, vy: 0, look: '=', deadly: true });
+    }
+    if (t.type === '*' && Math.abs(pcx - tx) < 44 && Math.abs(pcy - ty) < 40) {
+      t.done = true; setTile(t.c, t.r, '^');
+    }
+    // v: つながったレンガが一気に落ちる / L: 近い順に1個ずつ落ちる
+    if ((t.type === 'v' || t.type === 'L') && pcy > ty && pcy - ty < 7 * T) {
+      let a = t.c, b = t.c;
+      while (tile(a - 1, t.r) === t.type) a--;
+      while (tile(b + 1, t.r) === t.type) b++;
+      // 列の真下に入った瞬間に落とす(手前で落ちると ただの見せ物になるため)
+      if (pcx < a * T - 8 || pcx > (b + 1) * T + 8) continue;
+      const oc = Math.min(b, Math.max(a, Math.floor(pcx / T)));   // L は主人公の真上から順に落ちる
+      for (let c = a; c <= b; c++) {
+        const tt = traps.find(x => x.c === c && x.r === t.r); if (tt) tt.done = true;
+        seqFalls.push({ c, r: t.r, t: t.type === 'v' ? 1 : 1 + Math.abs(c - oc) * 9 });
+      }
+    }
+    // h: 近づくと外れて、主人公を追いかけてくる
+    if (t.type === 'h' && Math.hypot(pcx - tx, pcy - ty) < 4.5 * T) {
+      t.done = true; setTile(t.c, t.r, '.');
+      homers.push({ x: t.c * T, y: t.r * T, vx: 0, vy: 0, life: 360 });
+    }
+  }
+}
+
+function updateHazards() {
+  for (const s of seqFalls) {
+    if (--s.t !== 0) continue;
+    setTile(s.c, s.r, '.');
+    fallers.push({ x: s.c * T, y: s.r * T, vy: 0, look: '=', deadly: true });
+  }
+  seqFalls = seqFalls.filter(s => s.t > 0);
+
+  const pcx = p.x + p.w / 2, pcy = p.y + p.h / 2;
+  for (const h of homers) {
+    h.life--;
+    if (h.life > 0) {
+      const dx = pcx - (h.x + 16), dy = pcy - (h.y + 16), d = Math.hypot(dx, dy) || 1;
+      h.vx += dx / d * 0.16; h.vy += dy / d * 0.16;
+      const sp = Math.hypot(h.vx, h.vy);
+      if (sp > 3) { h.vx *= 3 / sp; h.vy *= 3 / sp; }
+    } else h.vy += 0.5;   // 追いかけ終わったら落ちる
+    h.x += h.vx; h.y += h.vy;
+    if (overlap(p, { x: h.x + 4, y: h.y + 4, w: 24, h: 24 })) die('レンガは下に落ちてくる…\nそれ、固定概念です');
+  }
+  homers = homers.filter(h => h.y < rows * T + 100);
+
+  // おばけ: E は背中を向けると近づき、見ると止まる。< はその逆(見ているときだけ近づく)
+  for (const gh of ghosts) {
+    const dx = pcx - gh.x, dy = pcy - gh.y, d = Math.hypot(dx, dy);
+    const looking = (gh.x - pcx) * p.facing > 0;
+    gh.moving = d < 12 * T && (gh.rev ? looking : !looking);
+    if (gh.moving && d > 1) { gh.x += dx / d * 1.1; gh.y += dy / d * 0.7; }
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 22) die(gh.rev ? 'おばけは 見れば止まる…\nそれ、固定概念です' : 'おばけに 背中を見せた');
+  }
+
+  // 締め切りの壁: from 列を越えると後ろからトゲの壁が追いかけてくる(to 列で消える)
+  const pcol = Math.floor(pcx / T);
+  if (!chase) {
+    for (const ch of stage().chase || []) {
+      if (chaseDone.has(ch.from) || pcol < ch.from || pcol >= ch.to) continue;
+      chaseDone.add(ch.from);
+      chase = { x: (ch.from - (ch.gap || 7)) * T, to: ch.to * T, sp: ch.speed || 2.5, label: ch.label || '締切', death: ch.death };
+      break;
+    }
+  }
+  if (chase) {
+    chase.x += chase.sp;
+    if (p.x < chase.x) die(chase.death || '締め切りに 追いつかれました');
+    if (chase.x > chase.to) chase = null;
+  }
+
+  // ドッスン: 真下でも横でもなく、ななめに突っ込んでくる
+  for (const s of thwomps) {
+    const cx = s.x + s.w / 2, dx = pcx - cx;
+    if (s.state === 'idle') {
+      if (s.t > 0) s.t--;
+      else if (pcy > s.y + s.h && pcy - s.y < 10 * T && Math.abs(dx) < 8 * T) {
+        // 主人公が走っている「先」を読んで狙う。ただし必ずななめ(25〜65度)にする
+        const cy = s.y + s.h / 2, vy = pcy - cy;
+        const tx = pcx + p.vx * (vy / 7) * 1.1;
+        let ux = tx - cx, uy = vy;
+        const ang = Math.min(Math.max(Math.atan2(uy, Math.abs(ux)), 25 * Math.PI / 180), 65 * Math.PI / 180);
+        const side = Math.sign(ux) || (Math.random() < 0.5 ? -1 : 1);
+        s.ux = Math.cos(ang) * side; s.uy = Math.sin(ang);
+        s.state = 'attack'; s.sp = 5;
+      }
+    } else if (s.state === 'attack') {
+      s.sp = Math.min(s.sp + 0.5, 11);
+      const nx = s.x + s.ux * s.sp, ny = s.y + s.uy * s.sp;
+      if (boxHitsSolid(nx, ny, s.w, s.h) || ny > rows * T) { s.state = 'land'; s.t = 30; }
+      else { s.x = nx; s.y = ny; }
+    } else if (s.state === 'land') {
+      if (--s.t <= 0) s.state = 'return';
+    } else if (s.state === 'return') {
+      const rx = s.hx - s.x, ry = s.hy - s.y, d = Math.hypot(rx, ry);
+      // 戻ったあと少し休む(すぐまた突っ込むと、避ける方法がなくなるため)
+      if (d < 2) { s.x = s.hx; s.y = s.hy; s.state = 'idle'; s.t = 90; }
+      else { s.x += rx / d * 2; s.y += ry / d * 2; }
+    }
+    if (overlap(p, { x: s.x + 3, y: s.y + 3, w: s.w - 6, h: s.h - 6 })) die('ドッスンは 真下に来る…\nそれ、固定概念です');
+  }
+}
+
+function boxHitsSolid(x, y, w, h) {
+  for (let r = Math.floor(y / T); r <= Math.floor((y + h - 1) / T); r++)
+    for (let c = Math.floor(x / T); c <= Math.floor((x + w - 1) / T); c++)
+      if (isSolid(tile(c, r))) return true;
+  return false;
+}
+
+function touchingSpike(o) {
+  let hit = false;
+  eachTile(o, (ch, c, r) => { if (ch === '^' && overlap(o, { x: c * T + 4, y: r * T + 12, w: 24, h: 20 })) hit = true; });
+  return hit;
+}
+
+function tilesAround(o, pad, test) {
+  const c0 = Math.floor((o.x - pad) / T), c1 = Math.floor((o.x + o.w + pad - 1) / T);
+  const r0 = Math.floor(o.y / T), r1 = Math.floor((o.y + o.h - 1) / T);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const ch = tile(c, r);
+    if (test(ch)) return ch;
+  }
+  return null;
+}
+
+function goalBox(g) {
+  // ポールは高さ4マスぶん当たる。トイレは1マスちょっと
+  return g.kind === 'pole' ? { x: g.c * T + 10, y: (g.r - 3) * T, w: 12, h: 4 * T }
+                           : { x: g.c * T + 2, y: g.r * T - 12, w: 28, h: T + 12 };
+}
+
+// パックン: 150フレームで 隠れる→出る→引っこむ をくり返す。off は土管から隠れている量
+function plantOff(t) {
+  if (t < 60) return 40;
+  if (t < 75) return 40 - (t - 60) / 15 * 40;
+  if (t < 120) return 0;
+  if (t < 135) return (t - 120) / 15 * 40;
+  return 40;
+}
+
+// ---------- 更新 ----------
+function die(reason) {
+  if (mode !== 'play' && mode !== 'pause') return;
+  if (mode === 'pause') { menu = null; reason = stage().pauseDeath || reason; }
+  mode = 'dead'; deaths++; deadTimer = 150;
+  Sound.sfx.death();
+  deathHeader = DEATH_HEADERS[Math.floor(Math.random() * DEATH_HEADERS.length)];
+  const spot = stageIndex + ':' + Math.floor(p.x / 96);
+  const n = deathSpots[spot] = (deathSpots[spot] || 0) + 1;
+  // ステージ専用の煽りがあれば半分くらいの確率でそちらを使う
+  const pool = stage().deathLines && Math.random() < 0.5 ? stage().deathLines : DEATH_LINES;
+  const line = n >= 3 && Math.random() < 0.6 ? `ここで死ぬのは ${n}回目です。記録しておきますね`
+                                             : pool[Math.floor(Math.random() * pool.length)];
+  deathMsg = reason + '\n' + line;
+  const marks = deathMarks[stageIndex] || (deathMarks[stageIndex] = []);
+  marks.push([Math.round(p.x + p.w / 2), Math.round(Math.min(p.y + p.h / 2, (rows - 1) * T - 8))]);
+  if (marks.length > 80) marks.shift();
+  p.dead = true; p.vy = -9;
+  saveGame();
+}
+
+// frozen = true のときは主人公だけ止めて、敵などはそのまま動かす(第2部の「一時停止も安全じゃない」用)
+function updatePlay(frozen) {
+  if (!frozen) movePlayer();
+  if (mode === 'dead') return;
+  processFalls();
+  processClouds();
+  checkTraps();
+  updateHazards();
+  if (mode === 'dead') return;
+  updateWorld();
+  if (mode === 'dead' || frozen) return;
+  checkPlayer();
+}
+
+// 「←→ はんてん」ゾーン(stages.js の reverse)にいるか
+function inReverse() {
+  const c = Math.floor((p.x + p.w / 2) / T), r = Math.floor((p.y + p.h / 2) / T);
+  return (stage().reverse || []).some(z => c >= z.c1 && c <= z.c2 && r >= z.r1 && r <= z.r2);
+}
+
+// 「通信が不安定」ゾーン(stages.js の lag)にいれば、何フレーム遅らせるかを返す
+function lagDelay() {
+  const c = Math.floor((p.x + p.w / 2) / T), r = Math.floor((p.y + p.h / 2) / T);
+  const z = (stage().lag || []).find(z => c >= z.c1 && c <= z.c2 && r >= z.r1 && r <= z.r2);
+  return z ? (z.delay || 18) : 0;
+}
+
+function movePlayer() {
+  let L = !!(keys.ArrowLeft || keys.KeyA), R = !!(keys.ArrowRight || keys.KeyD);
+  let J = !!(keys.Space || keys.ArrowUp || keys.KeyZ || keys.KeyW);
+  keyHist.push([L, R, J]);
+  if (keyHist.length > 90) keyHist.shift();
+  const lag = lagDelay();
+  if (lag) [L, R, J] = keyHist[Math.max(0, keyHist.length - 1 - lag)];
+  if (inReverse()) [L, R] = [R, L];
+  const acc = p.onGround ? 0.6 : 0.4, max = 3.6;
+  if (L && !R) { p.vx = Math.max(p.vx - acc, -max); p.facing = -1; }
+  else if (R && !L) { p.vx = Math.min(p.vx + acc, max); p.facing = 1; }
+  else { p.vx *= p.onGround ? 0.7 : 0.95; if (Math.abs(p.vx) < 0.1) p.vx = 0; }
+  // 着地の少し前に押した/足場から落ちた直後に押した場合もジャンプ扱いにする(操作ミスで死ぬのはただのストレスなので)
+  p.coyote = p.onGround ? 6 : Math.max(0, (p.coyote || 0) - 1);
+  p.buffer = J && !p.jumpHeld ? 6 : Math.max(0, (p.buffer || 0) - 1);
+  if (p.buffer > 0 && p.coyote > 0) { p.vy = -11; p.onGround = false; p.coyote = 0; p.buffer = 0; Sound.sfx.jump(); }
+  if (!J && p.vy < -4) p.vy = -4;
+  p.jumpHeld = J;
+  p.vy = Math.min(p.vy + 0.5, 12);
+
+  if (moveX(p)) p.vx = 0;
+  moveY(p, true);
+  p.anim += Math.abs(p.vx);
+}
+
+function updateWorld() {
+  for (const e of enemies) {
+    if (!e.alive) { if (e.squash > 0) e.squash--; continue; }
+    // 地下の敵が、地上にいる間に動き出さないよう高さも見る
+    if (!e.active) { if (e.x < camX + W + 64 && Math.abs(e.y - p.y) < 400) e.active = true; else continue; }
+    e.vy = Math.min(e.vy + 0.5, 12);
+    if (moveX(e)) e.vx = -e.vx;
+    moveY(e, false);
+    if (e.y > rows * T + 100) { e.alive = false; e.squash = 0; continue; }
+    if (overlap(p, e)) {
+      const stomp = p.vy > 0 && p.y + p.h - e.y < 16;
+      if (stomp && e.type === 'e') { e.alive = false; e.squash = 30; p.vy = -7; Sound.sfx.stomp(); }
+      else if (stomp) { e.laugh = 200; die('踏んで倒せるなんて\n固定概念は いらないよーん'); }
+      else die('敵に触れた');
+    }
+  }
+  for (const pl of plants) {
+    pl.t = (pl.t + 1) % 150; pl.off = plantOff(pl.t);
+    if (pl.off < 34 && overlap(p, { x: pl.x - 10, y: pl.base - 40 + pl.off + 4, w: 20, h: 36 - pl.off })) die('パクッとされた');
+  }
+  for (const f of fallers) {
+    f.vy = Math.min(f.vy + 0.5, 14); f.y += f.vy;
+    if (f.deadly && overlap(p, { x: f.x + 2, y: f.y, w: T - 4, h: T })) die('上から降ってきた');
+  }
+  fallers = fallers.filter(f => f.y < rows * T + 200);
+  for (const pp of pops) { pp.t--; pp.y -= 2.5; }
+  pops = pops.filter(pp => pp.t > 0);
+}
+
+function checkPlayer() {
+  if (touchingSpike(p)) return die('トゲに刺さった');
+  if (p.y > rows * T + 40) return die('落ちた');
+  eachTile(p, (ch, c, r) => {
+    if (mode !== 'play') return;
+    if (ch === 'o') { setTile(c, r, '.'); takenSet(stageIndex).add(c + ',' + r); coins++; Sound.sfx.coin(); }
+    if (ch === 'J') return die('偽物の中間地点でした\n安全地帯なんて ありません');
+    const here = checkpoint && checkpoint.stage === stageIndex && checkpoint.c === c && checkpoint.r === r;
+    if ((ch === 'C' || ch === 'H') && !here) {
+      checkpoint = { stage: stageIndex, c, r };
+      if (ch === 'H' && !solved[stageIndex]) { solve(); flash = { text: '正解。ここは本物の中間地点です\n…今のところは', t: 160 }; }
+      else flash = { text: '中間地点。セーブしておきました', t: 110 };
+      saveGame();
+    }
+  });
+  if (mode !== 'play') return;
+  // 偽のエラー画面など(stages.js の events)。1回死ぬまでに1度だけ出る
+  const pc = Math.floor((p.x + p.w / 2) / T);
+  for (const ev of stage().events || []) {
+    if (!firedEvents.has(ev.c) && pc >= ev.c) {
+      firedEvents.add(ev.c); evt = { ...ev, t: ev.t || 200 }; mode = 'event'; clearKeys(); Sound.sfx.error(); return;
+    }
+  }
+  for (const g of goals) {
+    if (overlap(p, goalBox(g))) {
+      if (g.fakeClear) { mode = 'fakeclear'; fc = { t: 0, g }; clearKeys(); return; }
+      if (g.fake) return die(g.kind === 'pole' ? 'ゴールポールが ゴールだと思った?' : 'トイレがゴールだと、\nいつから錯覚してました?');
+      clearedGoal = g; mode = 'clear'; Sound.sfx.clear(); return;
+    }
+  }
+  const s = tilesAround(p, 0, isSign);
+  signText = s ? (stage().signs || {})[s] || '' : '';
+  nearDoor = !!stage().door && !!tilesAround(p, 3, ch => ch === 'D');
+  nearPost = !!stage().door && !!tilesAround(p, 2, ch => ch === 'K');
+}
+
+function updateDead() {
+  p.vy = Math.min(p.vy + 0.5, 12); p.y += p.vy;
+  for (const e of enemies) if (e.laugh) e.laugh--;
+  if (--deadTimer <= 0) { loadStage(stageIndex, false); mode = 'play'; }
+}
+
+function updateCamera() {
+  camX = Math.max(0, Math.min(p.x + p.w / 2 - W / 2, cols * T - W));
+  if (rows * T <= H) camY = rows * T - H;
+  else camY = Math.max(0, Math.min(p.y - H / 2, rows * T - H));
+}
+
+// ---------- 画面の流れ(タイトル・一時停止・クリア) ----------
+function setMenu(title, options, pick, sel = 0) { menu = { title, options, pick, sel, rects: [] }; }
+
+function goTitle() {
+  mode = 'title'; clearKeys();
+  hasSave = !!loadSave();
+  setMenu('', hasSave ? ['つづきから', 'はじめから'] : ['はじめる'], i => {
+    if (hasSave && i === 0) return continueGame();
+    setMenu(hasSave ? 'セーブが消えますけど、いいんですか?' : '本当にやるんですか? もうすぐ大人なのに?', ['はい', 'やめる'],
+      j => (j === 0 ? startNew() : goTitle()));
+  });
+}
+
+function startNew() {
+  clearSave();
+  deaths = 0; frames = 0; coins = 0; checkpoint = null; taken = {}; deathSpots = {}; cleared = []; deathMarks = {};
+  for (const k in solved) delete solved[k];
+  stageIndex = Math.max(0, Math.min(STAGES.length - 1, (typeof TEST_START_STAGE === 'number' ? TEST_START_STAGE : 1) - 1));
+  menu = null;
+  // 最初から遊ぶときは、チュートリアルの前に「お母さんから逃げる」オープニングを流す
+  if (stageIndex === 0) return startOpening();
+  loadStage(stageIndex, true); mode = 'play';
+  saveGame();
+}
+
+function continueGame() {
+  const s = loadSave();
+  if (!s) return startNew();
+  stageIndex = s.stageIndex; deaths = s.deaths || 0; frames = s.frames || 0; coins = s.coins || 0;
+  checkpoint = s.checkpoint || null; deathSpots = {};
+  for (const k in solved) delete solved[k];
+  Object.assign(solved, s.solved || {});
+  taken = {};
+  for (const k in (s.taken || {})) taken[k] = new Set(s.taken[k]);
+  cleared = s.cleared || []; deathMarks = s.deathMarks || {};
+  goMap(stageIndex);
+}
+
+function pause() {
+  if (mode !== 'play') return;
+  mode = 'pause'; clearKeys(); saveGame();
+  setMenu(stage().pauseTitle || '休憩ですか。いいご身分ですね。\n(一時停止中も 時間は進みます。締め切りと同じです)', ['つづける', 'マップにもどる', 'セーブしてタイトルへ'],
+    i => (i === 0 ? resume() : i === 1 ? (saveGame(), goMap(stageIndex)) : (saveGame(), goTitle())));
+}
+function resume() { mode = 'play'; menu = null; p.jumpHeld = true; }
+
+function nextStage() {
+  if (!cleared.includes(stageIndex)) cleared.push(stageIndex);
+  checkpoint = null;
+  const soon = typeof COMING_SOON !== 'undefined' ? COMING_SOON.length : 0;
+  if (stageIndex === STAGES.length - 1 && soon === 0) { mode = 'allclear'; clearSave(); return; }
+  saveGame();
+  goMap(Math.min(stageIndex + 1, STAGES.length - 1));
+}
+
+// ---------- 全体マップ(クリアしたステージはもう一度遊べる) ----------
+function mapNodes() {
+  const soon = typeof COMING_SOON !== 'undefined' ? COMING_SOON : [];
+  // テスト用に途中から始めている間は、そこまでのステージを開けておく
+  const testFrom = (typeof TEST_START_STAGE === 'number' ? TEST_START_STAGE : 1) - 1;
+  const list = STAGES.map((s, i) => ({ name: s.name || '', label: s.label || 'ステージ' + (i + 1), state: cleared.includes(i) ? 'clear' : (i === 0 || i <= testFrom || cleared.includes(i - 1)) ? 'open' : 'lock' }));
+  soon.forEach(name => list.push({ name, label: name.split(/\s+/)[0], state: 'soon' }));
+  const n = list.length;
+  list.forEach((nd, i) => { nd.x = n > 1 ? 100 + i * (760 / (n - 1)) : W / 2; nd.y = i % 2 ? 190 : 300; });
+  return list;
+}
+function goMap(sel) {
+  mode = 'map'; menu = null; clearKeys();
+  mapSel = Math.max(0, Math.min(sel || 0, mapNodes().length - 1));
+}
+function enterStage(i) {
+  const nd = mapNodes()[i];
+  if (!nd || nd.state === 'lock' || nd.state === 'soon') { flash = { text: nd && nd.state === 'soon' ? 'まだ作ってません。気長にお待ちください' : '前のステージをクリアしてからにしてください', t: 110 }; return; }
+  stageIndex = i;
+  // 別のステージの中間地点は引きつがない
+  if (!(checkpoint && checkpoint.stage === i)) checkpoint = null;
+  loadStage(i, true); mode = 'play'; saveGame();
+}
+const MAP_TITLE_BTN = { x: 16, y: 420, w: 150, h: 40 };
+
+function onPress(code) {
+  const ok = code === 'Enter' || code === 'Space';
+  if (mode === 'opening') { if (ok) openingPress(); return; }
+  if (menu && (mode === 'title' || mode === 'pause')) {
+    if (window.stageError || typeof STAGES === 'undefined') return;
+    const n = menu.options.length;
+    if (code === 'ArrowUp' || code === 'KeyW') menu.sel = (menu.sel + n - 1) % n;
+    else if (code === 'ArrowDown' || code === 'KeyS') menu.sel = (menu.sel + 1) % n;
+    else if (ok) menu.pick(menu.sel);
+    else if (mode === 'pause' && (code === 'KeyP' || code === 'Escape')) resume();
+    return;
+  }
+  if (mode === 'map') {
+    const n = mapNodes().length;
+    if (code === 'ArrowLeft' || code === 'KeyA' || code === 'ArrowUp') mapSel = Math.max(0, mapSel - 1);
+    else if (code === 'ArrowRight' || code === 'KeyD' || code === 'ArrowDown') mapSel = Math.min(n - 1, mapSel + 1);
+    else if (ok) enterStage(mapSel);
+    else if (code === 'Escape') goTitle();
+    return;
+  }
+  if (mode === 'play') {
+    if (code === 'KeyR') die('自主休講ですね。賢明です');
+    if (code === 'ArrowDown' || code === 'KeyS') examine();
+    if (code === 'KeyP' || code === 'Escape') pause();
+  } else if (mode === 'clear' && ok) nextStage();
+  else if (mode === 'allclear' && code === 'Enter') goTitle();
+}
+
+// 足の真下が土管の口(T)なら、その位置を返す
+function pipeUnderFeet() {
+  const c = Math.floor((p.x + p.w / 2) / T), r = Math.floor((p.y + p.h + 2) / T);
+  if (tile(c, r) !== 'T' || Math.abs(p.y + p.h - r * T) > 3) return null;
+  return { c, r };
+}
+
+// 土管に入る演出(30フレームかけて沈む)→ 出口へ
+function updateWarp() {
+  warp.t++; p.y += 1.2;
+  if (warp.t < 30) return;
+  const to = warp.w.to;
+  p.x = to.c * T + 5; p.y = to.r * T + 4; p.vx = 0; p.vy = 0; p.jumpHeld = true;
+  mode = 'play'; warp = null; updateCamera();
+}
+
+// 偽クリア: クリア画面 → スタッフロール → 「ウソです」→ 続きから
+const FC_CLEAR = 150, FC_OUTRO = 200;
+function fcCreditsLen() { return (stage().credits || []).length * 40 + 520; }
+function updateFakeClear() {
+  fc.t++;
+  if (fc.t < FC_CLEAR + fcCreditsLen() + FC_OUTRO) return;
+  p.x = (fc.g.c + 2) * T + 5; p.y = fc.g.r * T + 4; p.vx = 0; p.vy = 0; p.jumpHeld = true;
+  mode = 'play'; fc = null; updateCamera();
+}
+
+// ↓キー: ポストや順番ブロックがあるステージでは、扉は「答える場所」ではない
+function examine() {
+  // 土管の上で↓: stages.js の warps に登録された土管だけ入れる
+  const pipe = pipeUnderFeet();
+  if (pipe) {
+    const w = (stage().warps || []).find(w => w.r === pipe.r && (w.c === pipe.c || w.c + 1 === pipe.c));
+    if (w) { mode = 'warp'; warp = { w, t: 0 }; clearKeys(); Sound.sfx.warp(); p.x = (w.c + 1) * T - p.w / 2; p.vx = 0; return; }
+    flash = { text: 'この土管には 入れません', t: 90 };
+    return;
+  }
+  const d = stage().door;
+  if (!d) return;
+  if (nearPost) {
+    if (solved[stageIndex]) flash = { text: 'もう開いてますよ', t: 90 };
+    else openInput();
+  } else if (nearDoor && !solved[stageIndex]) {
+    if (hasPost || d.order || d.flag) flash = { text: d.message || '答える場所はここじゃない', t: 220 };
+    else openInput();
+  }
+}
+
+// ---------- 答えの入力 ----------
+const box = document.getElementById('codeBox'), qEl = document.getElementById('codeQ'), inEl = document.getElementById('codeIn');
+function norm(s) {
+  return String(s).normalize('NFKC').replace(/\s/g, '').toUpperCase()
+    .replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+}
+function openInput() {
+  mode = 'input'; inputOpen = true; clearKeys();
+  qEl.textContent = stage().door.question;
+  inEl.value = ''; box.style.display = 'flex';
+  setTimeout(() => inEl.focus(), 0);
+}
+function closeInput() {
+  box.style.display = 'none'; inputOpen = false; mode = 'play';
+  inEl.blur();
+  p.jumpHeld = true;
+}
+function submitCode() {
+  const answers = [].concat(stage().door.answer).map(norm);
+  const ok = answers.includes(norm(inEl.value));
+  closeInput();
+  if (ok) solve();
+  else die('答えをまちがえた');
+}
+inEl.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter' && !e.isComposing) submitCode();
+  if (e.key === 'Escape') closeInput();
+});
+document.getElementById('codeOk').onclick = submitCode;
+document.getElementById('codeCancel').onclick = closeInput;
+
+// ---------- スマホ操作 ----------
+if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) document.body.classList.add('touch');
+// ホーム画面から開いたとき(アプリのように全画面)は、全画面ボタンを隠す
+if (navigator.standalone || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches) document.body.classList.add('standalone');
+
+// 縦画面のまま横にできないブラウザ(Discordの中など)でも遊べるよう、縦長のときはゲームを90度回す
+let rotated = false;
+function layout() {
+  const wrap = document.getElementById('wrap');
+  const vw = window.innerWidth, vh = window.innerHeight;
+  rotated = document.body.classList.contains('touch') && vh > vw;
+  document.body.classList.toggle('rotated', rotated);
+  if (rotated) {
+    // 回したあとの横幅 = 画面の縦、高さ = 画面の横
+    Object.assign(wrap.style, { left: vw + 'px', width: vh + 'px', height: vw + 'px' });
+    cv.style.width = Math.min(vh, vw * 2) + 'px';
+  } else {
+    wrap.style.left = wrap.style.width = wrap.style.height = '';
+    cv.style.width = '';
+  }
+}
+addEventListener('resize', layout);
+addEventListener('orientationchange', () => setTimeout(layout, 200));
+layout();
+
+// 全画面ボタン: Android などはそのまま全画面。iPhone は仕組み上できないので「ホーム画面に追加」を案内する
+document.getElementById('btnF').addEventListener('pointerdown', e => {
+  e.preventDefault(); Sound.init();
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  const tellA2HS = () => { flash = { text: 'iPhoneは 画面下の 共有ボタン(□に↑)→\n「ホーム画面に追加」から開くと 全画面で遊べます', t: 360 }; };
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else if (req) {
+    Promise.resolve(req.call(el)).then(() => {
+      try { screen.orientation.lock('landscape').catch(() => {}); } catch (err) { /* 向きを固定できない端末もある */ }
+    }).catch(tellA2HS);
+  } else tellA2HS();
+});
+
+function holdButton(id, code) {
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('on'); press(code); });
+  const up = () => { el.classList.remove('on'); release(code); };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+holdButton('btnJump', 'Space');
+holdButton('btnDown', 'ArrowDown');
+holdButton('btnR', 'KeyR');
+holdButton('btnP', 'KeyP');
+holdButton('btnS', 'KeyM');
+document.getElementById('btnS').classList.toggle('muted', Sound.muted);
+
+// 左右は1つの板にして、指をすべらせるだけで向きを変えられるようにする
+const pad = document.getElementById('pad');
+function padAt(e) {
+  const rect = pad.getBoundingClientRect();
+  // 画面を回しているときは、ゲームの「右」がスマホの「下」になる
+  const right = rotated ? e.clientY > rect.top + rect.height / 2 : e.clientX > rect.left + rect.width / 2;
+  pad.classList.toggle('r', right); pad.classList.toggle('l', !right);
+  if (right) { release('ArrowLeft'); press('ArrowRight'); } else { release('ArrowRight'); press('ArrowLeft'); }
+}
+pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.setPointerCapture(e.pointerId); padAt(e); });
+pad.addEventListener('pointermove', e => { if (pad.hasPointerCapture(e.pointerId)) padAt(e); });
+const padUp = () => { pad.classList.remove('l', 'r'); release('ArrowLeft'); release('ArrowRight'); };
+pad.addEventListener('pointerup', padUp); pad.addEventListener('pointercancel', padUp);
+
+cv.addEventListener('pointerdown', e => {
+  Sound.init();
+  const rc = cv.getBoundingClientRect();
+  const x = rotated ? (e.clientY - rc.top) * W / rc.height : (e.clientX - rc.left) * W / rc.width;
+  const y = rotated ? (rc.right - e.clientX) * H / rc.width : (e.clientY - rc.top) * H / rc.height;
+  if (mode === 'opening') return openingPress();
+  if (menu && (mode === 'title' || mode === 'pause')) {
+    const i = menu.rects.findIndex(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+    if (i >= 0) { menu.sel = i; menu.pick(i); }
+  } else if (mode === 'map') {
+    const b = MAP_TITLE_BTN;
+    if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return goTitle();
+    const i = mapNodes().findIndex(nd => Math.hypot(nd.x - x, nd.y - y) < 44);
+    if (i >= 0) { mapSel = i; enterStage(i); }
+  } else if (mode === 'clear' || mode === 'allclear') onPress('Enter');
+});
+
+// アプリを切り替えたり画面を消したら、自動で一時停止してセーブ
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (mode === 'play') pause(); else saveGame(); }
+});
+
+// ---------- 描画 ----------
+function fmt(f) {
+  const s = Math.floor(f / 60), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
+  const two = n => String(n).padStart(2, '0');
+  return (h ? h + ':' : '') + two(m) + ':' + two(ss);
+}
+
+function textLines(text, x, y, size, color, align = 'center', lh = 1.5) {
+  ctx.font = `bold ${size}px "Yu Gothic", "Meiryo", "Hiragino Sans", sans-serif`;
+  ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'top';
+  String(text).split('\n').forEach((l, i) => ctx.fillText(l, x, y + i * size * lh));
+}
+
+// ライオットドリル: わざと左右非対称にしてブサイクにしている
+function drawBusaiku(cx, cy, facing, dead, anim, sc = 1) {
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(facing * sc, sc);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const s = dead ? 0 : Math.sin(anim * 0.25) * 4;
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-6, 8); ctx.lineTo(-6 + s, 14); ctx.moveTo(6, 8); ctx.lineTo(6 - s, 14); ctx.stroke();
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-4, -17); ctx.quadraticCurveTo(-9, -22, -6, -26);
+  ctx.moveTo(1, -17); ctx.lineTo(1, -27);
+  ctx.moveTo(6, -17); ctx.quadraticCurveTo(11, -20, 10, -25);
+  ctx.stroke();
+  ctx.fillStyle = '#f5e1c4'; ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-15, -18, 30, 28, 9); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-12, -12); ctx.lineTo(-3, -8); ctx.moveTo(3, -13); ctx.lineTo(12, -15); ctx.stroke();
+  if (dead) {
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-10, -7); ctx.lineTo(-4, -1); ctx.moveTo(-4, -7); ctx.lineTo(-10, -1);
+    ctx.moveTo(5, -8); ctx.lineTo(10, -3); ctx.moveTo(10, -8); ctx.lineTo(5, -3);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#fff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(-7, -4, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(8, -6, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(-5.5, -3, 1.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, -6, 1.2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = '#e9b394'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(2, 0, 5, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(0, 1.5, 1.1, 0, Math.PI * 2); ctx.arc(4.5, 1.5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e0668a';
+  if (dead) { ctx.beginPath(); ctx.ellipse(1, 6, 4, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  else {
+    ctx.beginPath(); ctx.ellipse(1, 6, 7, 2.8, 0.12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-5, 6); ctx.lineTo(7, 6.8); ctx.stroke();
+  }
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(-11, 3, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-11, 3); ctx.lineTo(-14, 0); ctx.stroke();
+  ctx.restore();
+}
+
+function drawEnemy(e) {
+  ctx.save();
+  ctx.translate(e.x + e.w / 2, e.y + e.h);
+  if (!e.alive) ctx.scale(1.3, 0.3);
+  ctx.fillStyle = '#8e44ad'; ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-13, 0); ctx.lineTo(-13, -12); ctx.arc(0, -12, 13, Math.PI, 0); ctx.lineTo(13, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  const look = p && p.x + p.w / 2 < e.x + e.w / 2 ? -2 : 2;
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, -14, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(look, -13, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(-8, -5);
+  for (let i = 0; i < 4; i++) { ctx.lineTo(-8 + i * 4 + 2, -1); ctx.lineTo(-8 + i * 4 + 4, -5); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+// パックン(土管の花)。土管の口より下は見えないように切り取って描く
+function drawPlant(pl) {
+  if (pl.off >= 40) return;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(pl.x - 24, pl.base - 60, 48, 60); ctx.clip();
+  const top = pl.base - 40 + pl.off;
+  ctx.fillStyle = '#2e8b3a'; ctx.fillRect(pl.x - 3, top + 18, 6, 24);
+  ctx.beginPath(); ctx.ellipse(pl.x - 8, top + 30, 7, 3, -0.5, 0, Math.PI * 2); ctx.ellipse(pl.x + 8, top + 30, 7, 3, 0.5, 0, Math.PI * 2); ctx.fill();
+  const open = Math.abs(Math.sin(frames * 0.15)) * 0.5 + 0.15;
+  ctx.fillStyle = '#d63031'; ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(pl.x, top + 11, 12, Math.PI / 2 + open, Math.PI / 2 - open + Math.PI * 2); ctx.lineTo(pl.x, top + 11); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  [[-6, 4], [5, 3], [-2, 13], [7, 12]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(pl.x + dx, top + dy, 2, 0, Math.PI * 2); ctx.fill(); });
+  // たらこ唇はここにも
+  ctx.fillStyle = '#e0668a'; ctx.beginPath(); ctx.ellipse(pl.x, top + 21, 5, 2.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+// 締め切りの壁(赤いトゲの壁が右へ迫ってくる)
+function drawChase() {
+  const x = chase.x, top = camY - 10, bot = camY + H + 10;
+  ctx.fillStyle = 'rgba(160,20,20,0.85)'; ctx.fillRect(x - 60, top, 60, bot - top);
+  ctx.fillStyle = '#e6e6e6';
+  for (let y = Math.floor(top / 24) * 24; y < bot; y += 24) {
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 14, y + 12); ctx.lineTo(x, y + 24); ctx.fill();
+  }
+  for (let y = Math.floor(top / 90) * 90; y < bot; y += 90) textLines(chase.label, x - 30, y + 20, 18, '#fff');
+}
+
+// おばけ。動いているときは舌を出してブサイクに、止まっているときは顔を隠して照れる
+function drawGhost(gh) {
+  ctx.save();
+  ctx.translate(gh.x, gh.y + Math.sin(ticks * 0.08 + gh.x) * 3);
+  const face = p && p.x + p.w / 2 < gh.x ? -1 : 1;
+  ctx.scale(face, 1);
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = gh.rev ? '#e8e0ff' : '#fbfbff'; ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, 16, Math.PI, 0);
+  ctx.lineTo(16, 12); ctx.quadraticCurveTo(10, 8, 6, 14); ctx.quadraticCurveTo(0, 8, -6, 14); ctx.quadraticCurveTo(-10, 8, -16, 12);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (gh.moving) {
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(-3, -5, 3.2, 0, Math.PI * 2); ctx.arc(8, -7, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5a0010'; ctx.beginPath(); ctx.ellipse(3, 4, 7, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff6f91'; ctx.beginPath(); ctx.ellipse(5, 9, 4, 5, 0.3, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.fillStyle = '#ffb3c7'; ctx.beginPath(); ctx.arc(-8, 2, 3, 0, Math.PI * 2); ctx.arc(10, 2, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fbfbff';
+    ctx.beginPath(); ctx.ellipse(-3, -3, 7, 5, -0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(8, -3, 6, 5, 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ドッスン(石の顔)。主人公の方をにらむ
+function drawThwomp(s) {
+  const { x, y, w, h } = s;
+  ctx.fillStyle = '#9aa3ad'; ctx.strokeStyle = '#2c3440'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#c9d0d8';
+  for (let i = 0; i < 4; i++) { // まわりのトゲ
+    const t = 6 + i * 11;
+    ctx.beginPath(); ctx.moveTo(x + t, y); ctx.lineTo(x + t + 4, y - 6); ctx.lineTo(x + t + 8, y); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + t, y + h); ctx.lineTo(x + t + 4, y + h + 6); ctx.lineTo(x + t + 8, y + h); ctx.fill();
+  }
+  const look = p && p.x + p.w / 2 < x + w / 2 ? -3 : 3;
+  ctx.fillStyle = '#fff'; ctx.fillRect(x + 8, y + 12, 11, 10); ctx.fillRect(x + 25, y + 12, 11, 10);
+  ctx.fillStyle = '#111'; ctx.fillRect(x + 11 + look, y + 15, 4, 5); ctx.fillRect(x + 28 + look, y + 15, 4, 5);
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 6, y + 8); ctx.lineTo(x + 19, y + 12); ctx.moveTo(x + 38, y + 8); ctx.lineTo(x + 25, y + 12); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillRect(x + 10, y + 30, 24, 7);
+  ctx.strokeStyle = '#2c3440'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); for (let i = 1; i < 4; i++) { ctx.moveTo(x + 10 + i * 6, y + 30); ctx.lineTo(x + 10 + i * 6, y + 37); } ctx.stroke();
+  ctx.strokeRect(x + 10, y + 30, 24, 7);
+}
+
+function drawBubble(text, cx, bottomY) {
+  const lines = text.split('\n');
+  ctx.font = 'bold 13px "Yu Gothic", "Meiryo", "Hiragino Sans", sans-serif';
+  const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, h = lines.length * 18 + 10;
+  const x = cx - w / 2, y = bottomY - h - 8;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 5, y + h); ctx.lineTo(cx, y + h + 8); ctx.lineTo(cx + 5, y + h); ctx.fill();
+  textLines(text, cx, y + 6, 13, '#222', 'center', 1.38);
+}
+
+function drawGround(x, y, c, r) {
+  ctx.fillStyle = '#c47a3c'; ctx.fillRect(x, y, T, T);
+  ctx.fillStyle = '#a8612a';
+  ctx.fillRect(x + ((c * 7) % 20) + 4, y + 14, 4, 4); ctx.fillRect(x + ((c * 13 + r * 5) % 18) + 6, y + 24, 3, 3);
+  if (!GROUND.has(tile(c, r - 1))) { ctx.fillStyle = '#4caf50'; ctx.fillRect(x, y, T, 7); ctx.fillStyle = '#2e7d32'; ctx.fillRect(x, y + 6, T, 2); }
+}
+function drawBrick(x, y) {
+  ctx.fillStyle = '#d0602a'; ctx.fillRect(x, y, T, T);
+  ctx.strokeStyle = '#6b2508'; ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, T - 2, T - 2);
+  ctx.beginPath(); ctx.moveTo(x, y + 16); ctx.lineTo(x + T, y + 16);
+  ctx.moveTo(x + 16, y); ctx.lineTo(x + 16, y + 16); ctx.moveTo(x + 8, y + 16); ctx.lineTo(x + 8, y + T); ctx.moveTo(x + 24, y + 16); ctx.lineTo(x + 24, y + T);
+  ctx.stroke();
+}
+function drawPost(x, y) {
+  ctx.fillStyle = '#555'; ctx.fillRect(x + 13, y + 18, 6, 14);
+  ctx.fillStyle = '#d62c2c'; ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(x + 5, y - 10, 22, 30, [10, 10, 3, 3]); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#222'; ctx.fillRect(x + 9, y - 1, 14, 3);
+  ctx.fillStyle = '#fff'; ctx.fillRect(x + 10, y + 7, 12, 8);
+  ctx.fillStyle = '#d62c2c'; ctx.fillRect(x + 12, y + 9, 8, 1.5); ctx.fillRect(x + 12, y + 12, 8, 1.5);
+}
+function drawPipe(ch, c, r) {
+  const x = c * T, y = r * T;
+  let n = 0;
+  while ('TI'.includes(tile(c - 1 - n, r)) && n < 50) n++;
+  const left = n % 2 === 0;
+  ctx.strokeStyle = '#123d17'; ctx.lineWidth = 2;
+  if (ch === 'T') {
+    ctx.fillStyle = '#3cb043'; ctx.fillRect(x, y + 1, T, T - 2);
+    ctx.beginPath(); ctx.moveTo(x, y + 1); ctx.lineTo(x + T, y + 1); ctx.moveTo(x, y + T - 1); ctx.lineTo(x + T, y + T - 1);
+    if (left) { ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + 1, y + T - 1); } else { ctx.moveTo(x + T - 1, y + 1); ctx.lineTo(x + T - 1, y + T - 1); }
+    ctx.stroke();
+    ctx.fillStyle = left ? '#8be38b' : '#237a2b'; ctx.fillRect(left ? x + 6 : x + T - 11, y + 4, 5, T - 8);
+  } else {
+    const bx = left ? x + 3 : x, bw = T - 3;
+    ctx.fillStyle = '#3cb043'; ctx.fillRect(bx, y, bw, T);
+    ctx.beginPath();
+    if (left) { ctx.moveTo(bx, y); ctx.lineTo(bx, y + T); } else { ctx.moveTo(bx + bw, y); ctx.lineTo(bx + bw, y + T); }
+    ctx.stroke();
+    ctx.fillStyle = left ? '#8be38b' : '#237a2b'; ctx.fillRect(left ? x + 9 : x + T - 13, y, 5, T);
+  }
+}
+function drawTile(ch, c, r) {
+  const x = c * T, y = r * T;
+  if (GROUND.has(ch)) drawGround(x, y, c, r);
+  else if (BRICKS.has(ch)) drawBrick(x, y);
+  else if (ch === 'T' || ch === 'I') drawPipe(ch, c, r);
+  else if (ch === 'R') {
+    ctx.fillStyle = '#9c6b30'; ctx.fillRect(x, y, T, T);
+    ctx.strokeStyle = '#4a2f10'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, T - 2, T - 2);
+    ctx.fillStyle = '#4a2f10'; [[5, 5], [25, 5], [5, 25], [25, 25]].forEach(([a, b]) => ctx.fillRect(x + a, y + b, 3, 3));
+  } else if ('QMNA'.includes(ch)) {
+    ctx.fillStyle = '#f5b82e'; ctx.fillRect(x, y, T, T);
+    ctx.strokeStyle = '#7a4a00'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, T - 2, T - 2);
+    textLines('?', x + 16, y + 4, 22, '#7a4a00');
+  } else if (isSwitch(ch)) {
+    const lit = pressed.includes(ch);
+    ctx.fillStyle = lit ? '#f1c40f' : '#4a6fa5'; ctx.fillRect(x, y, T, T);
+    ctx.strokeStyle = '#1d2d44'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, T - 2, T - 2);
+    const sym = ((stage().door || {}).switches || {})[ch] || ch;
+    textLines(sym, x + 16, y + 5, 20, lit ? '#222' : '#fff');
+  } else if (ch === 'o') {
+    const sq = Math.abs(Math.sin(frames * 0.08 + c));
+    ctx.fillStyle = '#ffd43b'; ctx.strokeStyle = '#a67c00'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x + 16, y + 16, 3 + sq * 7, 11, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  } else if (CLOUD.has(ch)) {
+    // 雲は Z(消える)も W と見た目を同じにする
+    ctx.fillStyle = '#dfe9f0';
+    ctx.beginPath(); ctx.ellipse(x + 16, y + 20, 20, 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(x + 16, y + 14, 20, 12, 0, 0, Math.PI * 2); ctx.ellipse(x + 8, y + 9, 10, 8, 0, 0, Math.PI * 2); ctx.ellipse(x + 23, y + 7, 11, 9, 0, 0, Math.PI * 2); ctx.fill();
+    if (!CLOUD.has(tile(c - 1, r))) {
+      ctx.fillStyle = '#333'; ctx.fillRect(x + 9, y + 10, 3, 3); ctx.fillRect(x + 19, y + 10, 3, 3);
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x + 15, y + 14, 5, 0.3, Math.PI - 0.3); ctx.stroke();
+    }
+  } else if (FLAG.has(ch)) {
+    const on = checkpoint && checkpoint.stage === stageIndex && checkpoint.c === c && checkpoint.r === r;
+    ctx.fillStyle = '#ddd'; ctx.fillRect(x + 6, y - T + 4, 3, 2 * T - 4);
+    ctx.fillStyle = on ? '#2ecc71' : '#e67e22'; ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5;
+    ctx.fillRect(x + 9, y - T + 4, 22, 16); ctx.strokeRect(x + 9, y - T + 4, 22, 16);
+    textLines('中間', x + 20, y - T + 6, 10, '#fff');
+  } else if (ch === 'D') {
+    ctx.fillStyle = '#5b5f66'; ctx.fillRect(x, y, T, T);
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, T - 2, T - 2);
+    if (tile(c, r + 1) !== 'D') {
+      ctx.fillStyle = '#f1c40f'; ctx.fillRect(x + 9, y + 12, 14, 12);
+      ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x + 16, y + 12, 5, Math.PI, 0); ctx.stroke();
+    }
+  } else if (ch === 'K') drawPost(x, y);
+  else if (ch === '^') {
+    ctx.fillStyle = '#e6e6e6'; ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath(); ctx.moveTo(x + k * 10 + 1, y + T); ctx.lineTo(x + k * 10 + 6, y + 10); ctx.lineTo(x + k * 10 + 11, y + T); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  } else if (isSign(ch)) {
+    ctx.fillStyle = '#7a4a1c'; ctx.fillRect(x + 14, y + 16, 4, 16);
+    ctx.fillStyle = '#e0b060'; ctx.strokeStyle = '#5a3510'; ctx.lineWidth = 2;
+    ctx.fillRect(x + 3, y + 3, 26, 16); ctx.strokeRect(x + 3, y + 3, 26, 16);
+    textLines('!', x + 16, y + 3, 13, '#5a3510');
+  }
+}
+
+function drawGoal(g) {
+  const x = g.c * T, y = g.r * T;
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5;
+  if (g.kind === 'pole') {
+    const top = (g.r - 3) * T, bottom = (g.r + 1) * T;
+    ctx.fillStyle = '#eee'; ctx.fillRect(x + 14, top + 6, 4, bottom - top - 6);
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath(); ctx.arc(x + 16, top + 6, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#27ae60';
+    ctx.beginPath(); ctx.moveTo(x + 14, top + 14); ctx.lineTo(x + 14, top + 38); ctx.lineTo(x - 12, top + 26); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#fdfdfd';
+    ctx.fillRect(x + 18, y - 12, 12, 26); ctx.strokeRect(x + 18, y - 12, 12, 26);
+    ctx.beginPath(); ctx.moveTo(x + 2, y + 10); ctx.lineTo(x + 26, y + 10); ctx.quadraticCurveTo(x + 24, y + 24, x + 14, y + 24); ctx.quadraticCurveTo(x + 4, y + 24, x + 2, y + 10); ctx.fill(); ctx.stroke();
+    ctx.fillRect(x + 10, y + 23, 10, 9); ctx.strokeRect(x + 10, y + 23, 10, 9);
+    ctx.fillStyle = '#9bd'; ctx.fillRect(x + 4, y + 7, 22, 4); ctx.strokeRect(x + 4, y + 7, 22, 4);
+    ctx.fillStyle = '#bbb'; ctx.fillRect(x + 21, y - 8, 6, 3);
+  }
+}
+
+function drawClouds() {
+  for (let i = 0; i < 8; i++) {
+    const x = ((i * 290 + 80) - camX * 0.3) % 2400;
+    const y = 40 + (i * 53) % 110;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(x, y, 42, 18, 0, 0, Math.PI * 2); ctx.ellipse(x - 26, y + 6, 22, 13, 0, 0, Math.PI * 2); ctx.ellipse(x + 28, y + 5, 24, 14, 0, 0, Math.PI * 2); ctx.fill();
+    // 雲もこっちを見てニヤニヤしている
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x - 10, y - 4, 3, 3); ctx.fillRect(x + 7, y - 4, 3, 3);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y + 1, 7, 0.2, Math.PI - 0.2); ctx.stroke();
+  }
+}
+
+function drawPanel(text, y, size = 18) {
+  const lines = text.split('\n');
+  ctx.font = `bold ${size}px "Yu Gothic", "Meiryo", "Hiragino Sans", sans-serif`;
+  const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 40;
+  const h = lines.length * size * 1.5 + 22;
+  ctx.fillStyle = 'rgba(255,251,232,0.96)'; ctx.fillRect(W / 2 - w / 2, y, w, h);
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.strokeRect(W / 2 - w / 2, y, w, h);
+  textLines(text, W / 2, y + 12, size, '#222');
+}
+
+function drawMenu(y0, light) {
+  menu.rects = [];
+  menu.options.forEach((o, i) => {
+    const w = 320, h = 44, x = W / 2 - w / 2, y = y0 + i * 56;
+    menu.rects.push({ x, y, w, h });
+    const on = i === menu.sel;
+    const base = light ? '#b0476f' : '#fff';   // 明るい背景(偽タイトル)では濃い色にする
+    ctx.fillStyle = on ? '#f1c40f' : (light ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.12)'); ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = base; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    textLines((on ? '▶ ' : '') + o, W / 2, y + 10, 22, on ? '#222' : base);
+  });
+}
+
+// 「表示を信じるな」用: stages.js の hudLies で、特定の場所だけ表示をウソにできる
+function hudText() {
+  const col = Math.floor((p.x + p.w / 2) / T);
+  for (const z of stage().hudLies || []) if (col >= z.from && col <= z.to) return z.text;
+  return `${stage().label || 'ステージ' + (stageIndex + 1)}   死亡 ${deaths}回   ${fmt(frames)}   コイン ${coins}`;
+}
+
+// 画面が上下逆さまになる場所(stages.js の flip)にいるか
+function inFlip() {
+  const c = Math.floor((p.x + p.w / 2) / T), r = Math.floor((p.y + p.h / 2) / T);
+  return (stage().flip || []).some(z => c >= z.c1 && c <= z.c2 && r >= z.r1 && r <= z.r2);
+}
+function flipped(draw) { ctx.save(); ctx.translate(0, H); ctx.scale(1, -1); draw(); ctx.restore(); }
+
+function drawWorld() {
+  const flip = inFlip();
+  if (flip) { ctx.save(); ctx.translate(0, H); ctx.scale(1, -1); }
+  ctx.fillStyle = '#8fd3ff'; ctx.fillRect(0, 0, W, H);
+  drawClouds();
+  // 地下(stages.js の underground 行より下)は暗い背景にする
+  if (stage().underground) {
+    const uy = stage().underground * T - camY;
+    if (uy < H) { ctx.fillStyle = '#2d2438'; ctx.fillRect(0, Math.max(0, uy), W, H); }
+  }
+  ctx.save();
+  ctx.translate(-Math.round(camX), -Math.round(camY));
+  // 操作はんてんゾーンはうっすら色をつける(ここだけは親切にする)
+  ctx.fillStyle = 'rgba(155,89,182,0.18)';
+  for (const z of stage().reverse || []) ctx.fillRect(z.c1 * T, z.r1 * T, (z.c2 - z.c1 + 1) * T, (z.r2 - z.r1 + 1) * T);
+  ctx.fillStyle = 'rgba(230,126,34,0.16)';
+  for (const z of stage().lag || []) ctx.fillRect(z.c1 * T, z.r1 * T, (z.c2 - z.c1 + 1) * T, (z.r2 - z.r1 + 1) * T);
+  plants.forEach(drawPlant);
+  // 土管に入っている間は、土管より奥に主人公を描く
+  if (mode === 'warp') drawBusaiku(p.x + p.w / 2, p.y + p.h / 2 + 4, p.facing, false, 0);
+  const c0 = Math.floor(camX / T), c1 = Math.floor((camX + W) / T);
+  const r0 = Math.max(0, Math.floor(camY / T)), r1 = Math.min(rows - 1, Math.floor((camY + H) / T) + 1);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) drawTile(tile(c, r), c, r);
+  goals.forEach(drawGoal);
+  for (const f of fallers) { if (f.look === '#') drawGround(f.x, f.y, 0, -99); else drawBrick(f.x, f.y); }
+  for (const pp of pops) {
+    ctx.fillStyle = '#ffd43b'; ctx.strokeStyle = '#a67c00'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(pp.x, pp.y, 6, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  // 死んだ場所の印(1回目は理不尽でも、2回目からは学習できるように)
+  ctx.strokeStyle = 'rgba(190,0,0,.5)'; ctx.lineWidth = 3;
+  for (const [mx, my] of deathMarks[stageIndex] || []) {
+    if (mx < camX - 20 || mx > camX + W + 20) continue;
+    ctx.beginPath(); ctx.moveTo(mx - 6, my - 6); ctx.lineTo(mx + 6, my + 6); ctx.moveTo(mx + 6, my - 6); ctx.lineTo(mx - 6, my + 6); ctx.stroke();
+  }
+  for (const e of enemies) if (e.alive || e.squash > 0) drawEnemy(e);
+  for (const h of homers) drawBrick(h.x, h.y);
+  thwomps.forEach(drawThwomp);
+  ghosts.forEach(drawGhost);
+  if (chase) drawChase();
+  if (mode !== 'warp') drawBusaiku(p.x + p.w / 2, p.y + p.h / 2 + 4, p.facing, p.dead, p.anim);
+
+  // 一番近い敵だけしゃべる(全員しゃべると吹き出しが重なるため)
+  let talker = null, best = 240;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const d = Math.abs(e.x - p.x);
+    if (e.laugh || d < best) { talker = e; best = e.laugh ? -1 : d; }
+  }
+  if (talker) {
+    const text = talker.laugh ? 'ぷぷぷ' : ((stage().talk || {})[talker.type] || DEFAULT_TALK[talker.type]);
+    drawBubble(text, talker.x + talker.w / 2, talker.y - 4);
+  }
+  if (mode === 'play') {
+    if (nearPost) textLines(solved[stageIndex] ? '' : '↓ で答えを入れる', p.x + p.w / 2, p.y - 44, 14, '#222');
+    else if (nearDoor && !solved[stageIndex]) textLines('↓ で調べる', p.x + p.w / 2, p.y - 44, 14, '#222');
+  }
+  ctx.restore();
+  if (flip) ctx.restore();
+
+  const hud = hudText() + (inReverse() ? '   ⇄ 操作はんてん中' : '') + (lagDelay() ? '   ⚠ 通信が不安定です(操作が遅れます)' : '');
+  ctx.font = 'bold 16px "Yu Gothic", "Meiryo", "Hiragino Sans", sans-serif';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(8, 8, ctx.measureText(hud).width + 20, 30);
+  textLines(hud, 18, 14, 16, '#fff', 'left');
+  if (banner && banner.t > 0) {
+    ctx.globalAlpha = Math.min(1, banner.t / 40);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 150, W, 80);
+    textLines(banner.text, W / 2, 170, 34, '#fff');
+    ctx.globalAlpha = 1;
+  } else if (signText && mode === 'play') {
+    // 逆さまの世界では看板も逆さま
+    if (flip) flipped(() => drawPanel(signText, 50)); else drawPanel(signText, 50);
+  }
+}
+
+// 偽のエラー画面(パソコンのエラーっぽい見た目)
+function drawEvent() {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H);
+  const w = 560, h = 210, x = W / 2 - w / 2, y = 120;
+  ctx.fillStyle = '#f0f0f0'; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#2b579a'; ctx.fillRect(x, y, w, 34);
+  textLines(evt.title || 'エラー', x + 14, y + 8, 16, '#fff', 'left');
+  ctx.fillStyle = '#d32f2f'; ctx.beginPath(); ctx.arc(x + 44, y + 90, 20, 0, Math.PI * 2); ctx.fill();
+  textLines('×', x + 44, y + 76, 24, '#fff');
+  textLines(evt.text, x + 80, y + 62, 17, '#222', 'left');
+  ['待機する', '強制終了'].forEach((b, i) => {
+    const bx = x + w - 250 + i * 124, by = y + h - 50;
+    ctx.fillStyle = '#e1e1e1'; ctx.fillRect(bx, by, 110, 34); ctx.strokeStyle = '#888'; ctx.strokeRect(bx, by, 110, 34);
+    textLines(b, bx + 55, by + 8, 15, '#222');
+  });
+}
+
+// 偽クリア: クリア画面 → スタッフロール → 「ウソです」
+function drawFakeClear() {
+  const t = fc.t, credits = stage().credits || [];
+  if (t < FC_CLEAR) {
+    drawWorld();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
+    textLines('ゴール!\n…たまには普通のこともあります', W / 2, 70, 30, '#fff');
+    textLines('Enter / タップ で次へ', W / 2, 400, 22, '#ddd');
+    return;
+  }
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const ct = t - FC_CLEAR;
+  if (ct < fcCreditsLen()) {
+    textLines('全ステージ クリア!  おめでとうございます', W / 2, 30 - Math.max(0, ct - 120) * 0.9, 28, '#f1c40f');
+    credits.forEach((l, i) => {
+      const y = H + 40 + i * 40 - ct * 0.9;
+      if (y > -40 && y < H) textLines(l, W / 2, y, 22, l.startsWith('【') ? '#ffd84a' : '#fff');
+    });
+  } else {
+    textLines('…というのは ウソです。\n\n' + (stage().fakeClearOutro || 'まだ続きます。'), W / 2, 150, 28, '#fff');
+  }
+}
+
+function drawMap() {
+  ctx.fillStyle = '#7ccf6b'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#8fd3ff'; ctx.fillRect(0, 0, W, 110);
+  camX = 0; drawClouds();
+  ctx.fillStyle = '#5fb24f';
+  [[120, 420, 160], [480, 440, 220], [840, 425, 170]].forEach(([x, y, rx]) => { ctx.beginPath(); ctx.ellipse(x, y, rx, 60, 0, 0, Math.PI * 2); ctx.fill(); });
+  textLines('全体マップ', W / 2, 16, 30, '#fff');
+  textLines(`死亡 ${deaths}回   ${fmt(frames)}   コイン ${coins}`, W - 16, 22, 16, '#fff', 'right');
+
+  const nodes = mapNodes();
+  ctx.strokeStyle = '#d9b27c'; ctx.lineWidth = 16; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); nodes.forEach((nd, i) => (i ? ctx.lineTo(nd.x, nd.y) : ctx.moveTo(nd.x, nd.y))); ctx.stroke();
+  const COLOR = { clear: '#2ecc71', open: '#f1c40f', lock: '#95a5a6', soon: '#6d6d6d' };
+  const MARK = { clear: '済', open: '!', lock: '×', soon: '…' };
+  nodes.forEach((nd, i) => {
+    if (i === mapSel) { ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(nd.x, nd.y, 36, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = COLOR[nd.state]; ctx.strokeStyle = '#222'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(nd.x, nd.y, 26, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    textLines(MARK[nd.state], nd.x, nd.y - 12, 22, '#222');
+    textLines(nd.label, nd.x, nd.y + 32, 16, '#1d3b16');
+  });
+  const cur = nodes[mapSel];
+  drawBusaiku(cur.x, cur.y - 58 + Math.sin(frames * 0.12) * 3, 1, false, frames, 1.5);
+  const info = { clear: 'クリア済み(もう一回遊べます)', open: '挑戦中', lock: 'まだ行けません', soon: '準備中' }[cur.state];
+  drawPanel(`${cur.name}\n${info}`, 350, 18);
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; const b = MAP_TITLE_BTN; ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(b.x, b.y, b.w, b.h);
+  textLines('タイトルへ', b.x + b.w / 2, b.y + 10, 17, '#fff');
+  const how = document.body.classList.contains('touch') ? 'タップ で入る' : '← → で選ぶ / Enter で入る / Esc でタイトル';
+  textLines(how, W - 16, 440, 14, '#1d3b16', 'right');
+}
+
+function render() {
+  if (window.stageError || typeof STAGES === 'undefined') {
+    ctx.fillStyle = '#300'; ctx.fillRect(0, 0, W, H);
+    textLines('ステージファイルにまちがいがあります\n\n' + (window.stageError || 'stages.js が読み込めません'), W / 2, 150, 20, '#fff');
+    return;
+  }
+  if (mode === 'title') { drawTitleScreen(); drawMuteIcon(); return; }
+  if (mode === 'opening') { drawOpening(); if (flash) drawPanel(flash.text, 180, 22); return; }
+  if (mode === 'allclear') {
+    ctx.fillStyle = '#10261a'; ctx.fillRect(0, 0, W, H);
+    textLines('脱出成功', W / 2, 40, 56, '#2ecc71');
+    textLines('『おとな だろ?』 …そうです。あなたは もう大人です。', W / 2, 118, 20, '#ffd84a');
+    textLines(`死亡回数 ${deaths}回\nクリア時間 ${fmt(frames)}\nコイン ${coins}枚`, W / 2, 170, 26, '#fff');
+    textLines('この画面をスクショして友達に送ってください\n(Enter / タップ でタイトルへ)', W / 2, 350, 18, '#aaa');
+    return;
+  }
+  if (mode === 'map') { drawMap(); if (flash) drawPanel(flash.text, 60, 20); return; }
+  if (mode === 'fakeclear') { drawFakeClear(); return; }
+  drawWorld();
+  if (mode === 'event') drawEvent();
+  if (mode === 'dead') {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, W, H);
+    // 昔のRPG風の「残念な一言」(ドット文字っぽく)
+    ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 330, 60, 660, 84);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.strokeRect(W / 2 - 326, 64, 652, 76);
+    ctx.font = 'bold 22px "MS Gothic", "Osaka-Mono", monospace'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    deathHeader.split('\n').forEach((l, i) => ctx.fillText(l, W / 2, 74 + i * 30));
+    textLines(deathMsg, W / 2, 180, 26, '#fff');
+  }
+  if (mode === 'clear') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
+    const head = clearedGoal && clearedGoal.kind === 'pole' ? 'ゴール!\n…たまには普通のこともあります' : 'スッキリ!\n…これくらいで喜ばないでください';
+    textLines(head, W / 2, 70, 30, '#fff');
+    if (stage().clearMemo) drawPanel(stage().clearMemo, 200, 22);
+    textLines('Enter / タップ で次へ', W / 2, 400, 22, '#ddd');
+  }
+  if (mode === 'pause') {
+    ctx.fillStyle = stage().pauseUnsafe ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H);
+    textLines('一時停止', W / 2, 60, 36, '#fff');
+    textLines(menu.title, W / 2, 125, 18, '#ff8a8a');
+    drawMenu(230);
+  }
+  if (flash) drawPanel(flash.text, 180, 22);
+  drawMuteIcon();
+}
+
+function drawMuteIcon() {
+  if (document.body.classList.contains('touch')) return;  // スマホは画面のボタンで切り替える
+  textLines(Sound.muted ? '音: OFF (Mキー)' : '音: ON (Mキー)', W - 12, H - 22, 12, 'rgba(0,0,0,.45)', 'right');
+}
+
+// 画面ごとに流す曲
+function wantBgm() {
+  if (mode === 'title') return 'cute';
+  if (mode === 'opening') return op && op.t < OP_CARD ? 'chase' : null;
+  if (mode === 'map') return 'map';
+  if (mode === 'fakeclear') return 'cute';   // 偽エンディングは ほのぼの曲で油断させる
+  if (mode === 'dead' || mode === 'clear' || mode === 'allclear') return null;
+  return chase ? 'chase' : 'goofy';
+}
+
+// ---------- ループ(1秒60回で固定) ----------
+let ticks = 0;
+function step() {
+  ticks++;
+  Sound.play(wantBgm()); Sound.tick();
+  if (mode === 'opening') updateOpening();
+  if (mode === 'play') {
+    frames++; updatePlay(); updateCamera();
+    if (frames % 300 === 0) saveGame();
+  }
+  else if (mode === 'dead') { frames++; updateDead(); }
+  else if (mode === 'input') frames++;
+  else if (mode === 'warp') { frames++; updateWarp(); }
+  else if (mode === 'fakeclear') { frames++; updateFakeClear(); }
+  else if (mode === 'event') {
+    frames++;
+    if (--evt.t <= 0) { flash = { text: evt.after || '…冗談です', t: 100 }; evt = null; mode = 'play'; p.jumpHeld = true; }
+  }
+  else if (mode === 'pause') { frames++; if (stage().pauseUnsafe) updatePlay(true); }
+  if (flash && --flash.t <= 0) flash = null;
+  if (banner && banner.t > 0) banner.t--;
+}
+let last = performance.now(), acc = 0;
+function loop(now) {
+  acc += Math.min(now - last, 100); last = now;
+  while (acc >= 1000 / 60) { step(); acc -= 1000 / 60; }
+  render();
+  requestAnimationFrame(loop);
+}
+goTitle();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
