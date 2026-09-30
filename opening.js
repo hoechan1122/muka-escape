@@ -16,8 +16,56 @@ function finishOpening() {
   openingSeen = true;
   try { localStorage.setItem('muka-opening', '1'); } catch (e) {}
   op = null;
+  // チュートリアルの前に「メモを取れ」の注意を出す(最後の謎で詰む人を減らすため)
+  mode = 'notice'; notice = { t: 0 };
+  clearKeys();
+}
+
+// ---------- 注意画面(メモを取れ) ----------
+const NOTICE_WAIT = 90;   // 読み飛ばし防止: 1.5秒たつまで進めない
+let notice = null;
+
+function noticePress() {
+  if (notice.t < NOTICE_WAIT) return;
+  notice = null;
   loadStage(stageIndex, true); mode = 'play';
   saveGame();
+}
+
+// 黄色と黒の「工事中」しましま
+function cautionBand(y, h) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, y, W, h); ctx.clip();
+  ctx.fillStyle = '#ffd400'; ctx.fillRect(0, y, W, h);
+  ctx.fillStyle = '#111';
+  for (let x = -h; x < W + h; x += 44) { ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x + 22, y + h); ctx.lineTo(x + 22 + h, y); ctx.lineTo(x + h, y); ctx.fill(); }
+  ctx.restore();
+}
+
+function warnSign(cx, cy, s) {
+  ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#111'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, cy - s); ctx.lineTo(cx + s * 1.1, cy + s * 0.8); ctx.lineTo(cx - s * 1.1, cy + s * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
+  textLines('!', cx, cy - s * 0.55, s * 1.1, '#111');
+}
+
+function drawNotice() {
+  ctx.fillStyle = '#1b1b22'; ctx.fillRect(0, 0, W, H);
+  cautionBand(0, 34); cautionBand(H - 34, 34);
+  ctx.fillStyle = '#fffbe8'; ctx.fillRect(60, 56, W - 120, H - 112);
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 5; ctx.strokeRect(60, 56, W - 120, H - 112);
+  warnSign(W / 2 - 150, 104, 28); warnSign(W / 2 + 150, 104, 28);
+  textLines('注 意', W / 2, 74, 50, '#d7001a');
+  textLines('このゲームは メモを取らないと クリアできません', W / 2, 152, 26, '#111');
+  const lines = [
+    '・看板に【メモ】と書いてあったら、必ず書き写すこと',
+    '・クリア画面の【最後の謎で使うメモ】も、必ず書くこと',
+    '・紙とペン / スマホのメモ帳 / スクショ、なんでもOK',
+    '・メモしてないと 最後に詰みます(戻れるけど、めんどくさいです)',
+  ];
+  lines.forEach((l, i) => textLines(l, 150, 212 + i * 40, 20, '#222', 'left'));
+  const how = document.body.classList.contains('touch') ? 'タップ' : 'Enter';
+  if (notice.t < NOTICE_WAIT) textLines('よく読んでください…', W / 2, 386, 20, '#888');
+  else if (notice.t % 60 < 42) textLines(`メモの用意ができたら ${how}`, W / 2, 386, 22, '#d7001a');
 }
 
 // Enter/タップ: 予告状が出ていれば始める。初めて見るときはスキップさせない(煽る)

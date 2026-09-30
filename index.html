@@ -116,9 +116,10 @@
     }
   });
 </script>
-<script src="stages.js"></script>
-<script src="sound.js"></script>
-<script src="opening.js"></script>
+<!-- ファイルを直したら ?v= の数字を1つ上げる(スマホに古いファイルが残らないように) -->
+<script src="stages.js?v=2"></script>
+<script src="sound.js?v=2"></script>
+<script src="opening.js?v=2"></script>
 <script>
 'use strict';
 const T = 32, W = 960, H = 480;
@@ -800,6 +801,7 @@ const MAP_TITLE_BTN = { x: 16, y: 420, w: 150, h: 40 };
 function onPress(code) {
   const ok = code === 'Enter' || code === 'Space';
   if (mode === 'opening') { if (ok) openingPress(); return; }
+  if (mode === 'notice') { if (ok) noticePress(); return; }
   if (menu && (mode === 'title' || mode === 'pause')) {
     if (window.stageError || typeof STAGES === 'undefined') return;
     const n = menu.options.length;
@@ -977,6 +979,7 @@ cv.addEventListener('pointerdown', e => {
   const x = rotated ? (e.clientY - rc.top) * W / rc.height : (e.clientX - rc.left) * W / rc.width;
   const y = rotated ? (rc.right - e.clientX) * H / rc.width : (e.clientY - rc.top) * H / rc.height;
   if (mode === 'opening') return openingPress();
+  if (mode === 'notice') return noticePress();
   if (menu && (mode === 'title' || mode === 'pause')) {
     const i = menu.rects.findIndex(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
     if (i >= 0) { menu.sel = i; menu.pick(i); }
@@ -1485,6 +1488,7 @@ function render() {
   }
   if (mode === 'title') { drawTitleScreen(); drawMuteIcon(); return; }
   if (mode === 'opening') { drawOpening(); if (flash) drawPanel(flash.text, 180, 22); return; }
+  if (mode === 'notice') { drawNotice(); return; }
   if (mode === 'allclear') {
     ctx.fillStyle = '#10261a'; ctx.fillRect(0, 0, W, H);
     textLines('脱出成功', W / 2, 40, 56, '#2ecc71');
@@ -1532,6 +1536,7 @@ function drawMuteIcon() {
 function wantBgm() {
   if (mode === 'title') return 'cute';
   if (mode === 'opening') return op && op.t < OP_CARD ? 'chase' : null;
+  if (mode === 'notice') return 'map';
   if (mode === 'map') return 'map';
   if (mode === 'fakeclear') return 'cute';   // 偽エンディングは ほのぼの曲で油断させる
   if (mode === 'dead' || mode === 'clear' || mode === 'allclear') return null;
@@ -1544,6 +1549,7 @@ function step() {
   ticks++;
   Sound.play(wantBgm()); Sound.tick();
   if (mode === 'opening') updateOpening();
+  if (mode === 'notice') notice.t++;
   if (mode === 'play') {
     frames++; updatePlay(); updateCamera();
     if (frames % 300 === 0) saveGame();
